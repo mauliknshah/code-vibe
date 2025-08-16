@@ -26,7 +26,7 @@ The frontend follows a modular structure with organized components, pages, hooks
 The server is built using Express.js with TypeScript in an ESM environment:
 
 - **Web Framework**: Express.js with middleware for request logging, JSON parsing, and error handling
-- **Session Management**: Express sessions with configurable storage for OAuth state management
+- **Stateless Design**: No session management required for public repository access
 - **API Design**: RESTful API endpoints with consistent error handling and response formatting
 - **Development Setup**: Vite integration for hot module replacement and optimized development experience
 
@@ -41,17 +41,15 @@ The application uses a PostgreSQL database with Drizzle ORM for type-safe databa
 - **Schema Design**: Relational schema with tables for users, repositories, conversations, messages, and repository analyses
 - **Development Storage**: In-memory storage implementation for development and testing
 
-The schema supports user authentication, repository management, conversational AI interactions, and analytical data storage.
+The schema supports repository management, conversational AI interactions, and analytical data storage without user authentication.
 
-### Authentication and Authorization
-GitHub OAuth 2.0 integration provides secure user authentication:
+### Repository Access
+The application works with public GitHub repositories without requiring authentication:
 
-- **OAuth Provider**: GitHub OAuth for user authentication and repository access
-- **Session Management**: Server-side sessions with configurable security settings
-- **Token Management**: Secure storage and handling of GitHub access tokens
-- **Authorization Scopes**: Repository and user email permissions for comprehensive access
-
-The authentication flow includes state validation and secure token exchange with proper error handling.
+- **Public Repository Access**: Direct access to GitHub API for public repository data
+- **No Authentication Required**: Users can analyze any public repository by URL or search
+- **Rate Limited Access**: GitHub API rate limits apply to unauthenticated requests
+- **Repository Analysis**: Full analysis capabilities for publicly accessible repositories
 
 ## External Dependencies
 
