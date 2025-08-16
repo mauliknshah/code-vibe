@@ -16,24 +16,70 @@ export default function RepositorySearch({ onSelect, onClose }: RepositorySearch
   const [searchTerm, setSearchTerm] = useState("");
   const [sort, setSort] = useState<'stars' | 'updated' | 'forks'>('stars');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [directRepo, setDirectRepo] = useState<string | null>(null);
 
-  // Debounce search term
+  // Extract repository from URL or direct owner/repo format
+  const extractRepoFromInput = (input: string): string | null => {
+    const trimmed = input.trim();
+    
+    // GitHub URL patterns
+    const urlPattern = /(?:https?:\/\/)?(?:www\.)?github\.com\/([^\s\/]+)\/([^\s\/]+)/;
+    const urlMatch = trimmed.match(urlPattern);
+    
+    if (urlMatch) {
+      return `${urlMatch[1]}/${urlMatch[2]}`;
+    }
+    
+    // Direct owner/repo pattern (e.g., "facebook/react")
+    const directPattern = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
+    if (directPattern.test(trimmed)) {
+      return trimmed;
+    }
+    
+    return null;
+  };
+
+  // Debounce search term and check for direct repo
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
+      const repoPath = extractRepoFromInput(searchTerm);
+      if (repoPath) {
+        setDirectRepo(repoPath);
+        setDebouncedSearchTerm(""); // Don't search when we have a direct repo
+      } else {
+        setDirectRepo(null);
+        setDebouncedSearchTerm(searchTerm);
+      }
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
   const { data: repositories, isLoading, error } = useQuery<GitHubRepository[]>({
     queryKey: ["/api/repositories/search", debouncedSearchTerm, sort],
-    enabled: debouncedSearchTerm.length >= 3,
+    enabled: debouncedSearchTerm.length >= 3 && !directRepo,
     queryFn: async () => {
       const response = await fetch(`/api/repositories/search?q=${encodeURIComponent(debouncedSearchTerm)}&sort=${sort}`);
       if (!response.ok) {
         throw new Error('Failed to search repositories');
       }
       return response.json();
+    },
+  });
+
+  // Fetch specific repository when direct repo is provided
+  const { data: directRepository, isLoading: directLoading, error: directError } = useQuery<GitHubRepository>({
+    queryKey: ["/api/repositories/direct", directRepo],
+    enabled: !!directRepo,
+    queryFn: async () => {
+      const response = await fetch(`/api/repositories/search?q=repo:${directRepo}`);
+      if (!response.ok) {
+        throw new Error('Repository not found');
+      }
+      const data = await response.json();
+      if (data.length === 0) {
+        throw new Error('Repository not found');
+      }
+      return data[0]; // Return the first (and should be only) result
     },
   });
 
@@ -67,7 +113,7 @@ export default function RepositorySearch({ onSelect, onClose }: RepositorySearch
               <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-github-muted"></i>
               <Input
                 type="text"
-                placeholder="Search repositories (e.g., 'react', 'tensorflow', 'microsoft/vscode')..."
+                placeholder="Search repositories or paste GitHub URL (e.g., 'react', 'https://github.com/facebook/react')..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 bg-github-dark border-github-border text-github-text placeholder-github-muted"
@@ -86,11 +132,11 @@ export default function RepositorySearch({ onSelect, onClose }: RepositorySearch
             </Select>
             <Button 
               type="submit" 
-              disabled={searchTerm.length < 3}
+              disabled={searchTerm.length < 3 && !directRepo}
               className="bg-github-blue hover:bg-blue-600 text-white"
               data-testid="button-search"
             >
-              Search
+              {directRepo ? 'Get Repo' : 'Search'}
             </Button>
           </form>
 
@@ -100,27 +146,43 @@ export default function RepositorySearch({ onSelect, onClose }: RepositorySearch
               <i className="fab fa-github text-6xl text-github-muted mb-4"></i>
               <h4 className="text-lg font-medium text-github-text mb-2">Search Public Repositories</h4>
               <p className="text-github-muted mb-6 max-w-2xl mx-auto">
-                Search for any public repository on GitHub. You can search by name, description, or use specific repository names like "owner/repo".
+                Search for any public repository on GitHub. You can search by name, description, paste a GitHub URL, or use specific repository names.
               </p>
-              <div className="grid md:grid-cols-3 gap-4 max-w-2xl mx-auto text-sm">
+              <div className="grid md:grid-cols-4 gap-4 max-w-3xl mx-auto text-sm">
                 <div className="p-3 bg-github-dark rounded-lg border border-github-border">
                   <p className="font-medium text-github-text mb-1">By Topic</p>
-                  <p className="text-github-muted">react, vue, machine-learning</p>
+                  <p className="text-github-muted">react, vue, tensorflow</p>
                 </div>
                 <div className="p-3 bg-github-dark rounded-lg border border-github-border">
                   <p className="font-medium text-github-text mb-1">By Language</p>
                   <p className="text-github-muted">javascript, python, rust</p>
                 </div>
                 <div className="p-3 bg-github-dark rounded-lg border border-github-border">
-                  <p className="font-medium text-github-text mb-1">Specific Repo</p>
+                  <p className="font-medium text-github-text mb-1">Direct Repo</p>
                   <p className="text-github-muted">facebook/react</p>
+                </div>
+                <div className="p-3 bg-github-dark rounded-lg border border-github-border">
+                  <p className="font-medium text-github-text mb-1">GitHub URL</p>
+                  <p className="text-github-muted">github.com/owner/repo</p>
                 </div>
               </div>
             </div>
           )}
 
+          {/* Direct Repository Display */}
+          {directRepo && (
+            <div className="mb-6 p-4 bg-github-blue/10 border border-github-blue/20 rounded-lg">
+              <div className="flex items-center space-x-2 mb-2">
+                <i className="fas fa-link text-github-blue"></i>
+                <p className="text-sm font-medium text-github-text">Direct Repository Detected</p>
+              </div>
+              <p className="text-github-text font-mono">{directRepo}</p>
+              <p className="text-xs text-github-muted mt-1">Click "Get Repo" to analyze this specific repository</p>
+            </div>
+          )}
+
           {/* Search Requirements */}
-          {searchTerm.length > 0 && searchTerm.length < 3 && (
+          {searchTerm.length > 0 && searchTerm.length < 3 && !directRepo && (
             <div className="text-center py-8">
               <i className="fas fa-keyboard text-4xl text-github-muted mb-4"></i>
               <p className="text-github-muted">Please enter at least 3 characters to search</p>
@@ -128,32 +190,86 @@ export default function RepositorySearch({ onSelect, onClose }: RepositorySearch
           )}
 
           {/* Loading State */}
-          {isLoading && (
+          {(isLoading || directLoading) && (
             <div className="space-y-3">
-              {[...Array(6)].map((_, i) => (
+              {[...Array(directRepo ? 1 : 6)].map((_, i) => (
                 <Skeleton key={i} className="h-24 w-full bg-github-dark" />
               ))}
             </div>
           )}
 
           {/* Error State */}
-          {error && (
+          {(error || directError) && (
             <div className="text-center py-8">
               <i className="fas fa-exclamation-triangle text-4xl text-red-400 mb-4"></i>
-              <p className="text-red-400 mb-2">Failed to search repositories</p>
-              <p className="text-github-muted text-sm">Please try again with a different search term</p>
+              <p className="text-red-400 mb-2">
+                {directError ? 'Repository not found' : 'Failed to search repositories'}
+              </p>
+              <p className="text-github-muted text-sm">
+                {directError ? 'Please check the repository name or URL' : 'Please try again with a different search term'}
+              </p>
             </div>
           )}
 
-          {/* Results */}
-          {repositories && repositories.length === 0 && debouncedSearchTerm.length >= 3 && !isLoading && (
+          {/* Direct Repository Result */}
+          {directRepository && (
+            <div className="space-y-3">
+              <div 
+                className="p-4 bg-github-dark rounded-lg border border-github-blue/50 transition-all"
+                data-testid={`card-repository-${directRepository.id}`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h4 className="font-medium text-github-text" data-testid={`text-repository-name-${directRepository.id}`}>
+                        {directRepository.full_name}
+                      </h4>
+                      <span className="px-2 py-1 text-xs bg-github-border text-github-muted rounded">
+                        {directRepository.private ? "Private" : "Public"}
+                      </span>
+                      <span className="px-2 py-1 text-xs bg-github-blue/20 text-github-blue rounded">
+                        Direct Match
+                      </span>
+                    </div>
+                    <p className="text-sm text-github-muted mb-3" data-testid={`text-repository-description-${directRepository.id}`}>
+                      {directRepository.description || "No description"}
+                    </p>
+                    <div className="flex items-center space-x-4 text-xs text-github-muted">
+                      <span data-testid={`text-repository-stars-${directRepository.id}`}>
+                        <i className="fas fa-star mr-1 text-yellow-400"></i>{directRepository.stargazers_count.toLocaleString()}
+                      </span>
+                      <span data-testid={`text-repository-forks-${directRepository.id}`}>
+                        <i className="fas fa-code-branch mr-1"></i>{directRepository.forks_count.toLocaleString()}
+                      </span>
+                      {directRepository.language && (
+                        <span data-testid={`text-repository-language-${directRepository.id}`}>
+                          <i className="fas fa-circle text-yellow-400 mr-1"></i>{directRepository.language}
+                        </span>
+                      )}
+                      <span>Updated {new Date(directRepository.updated_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => onSelect(directRepository)}
+                    className="bg-github-blue hover:bg-blue-600 text-white"
+                    data-testid={`button-select-repository-${directRepository.id}`}
+                  >
+                    Select
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Search Results */}
+          {repositories && repositories.length === 0 && debouncedSearchTerm.length >= 3 && !isLoading && !directRepo && (
             <div className="text-center py-8">
               <i className="fas fa-search text-4xl text-github-muted mb-4"></i>
               <p className="text-github-muted">No repositories found for "{debouncedSearchTerm}"</p>
             </div>
           )}
 
-          {repositories && repositories.length > 0 && (
+          {repositories && repositories.length > 0 && !directRepo && (
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {repositories.map((repo) => (
                 <div 
@@ -179,7 +295,7 @@ export default function RepositorySearch({ onSelect, onClose }: RepositorySearch
                           <i className="fas fa-star mr-1 text-yellow-400"></i>{repo.stargazers_count.toLocaleString()}
                         </span>
                         <span data-testid={`text-repository-forks-${repo.id}`}>
-                          <i className="fas fa-code-branch mr-1"></i>{repo.forks_count.toLocaleString()}
+                          <i className="fas fa-code-branch mr-1 text-yellow-400"></i>{repo.forks_count.toLocaleString()}
                         </span>
                         {repo.language && (
                           <span data-testid={`text-repository-language-${repo.id}`}>
