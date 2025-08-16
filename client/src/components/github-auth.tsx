@@ -2,7 +2,16 @@ import { Button } from "@/components/ui/button";
 
 export default function GitHubAuth() {
   const handleGitHubAuth = () => {
-    window.location.href = "/api/auth/github";
+    console.log('GitHub auth button clicked'); // Debug log
+    const currentHost = window.location.host;
+    console.log('Current host:', currentHost); // Debug log
+    
+    // Force full URL for deployed version
+    if (currentHost.includes('replit.app')) {
+      window.location.href = `https://${currentHost}/api/auth/github`;
+    } else {
+      window.location.href = "/api/auth/github";
+    }
   };
 
   return (
