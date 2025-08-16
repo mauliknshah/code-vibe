@@ -27,6 +27,15 @@ export interface AnalysisResult {
 }
 
 export class CodeAnalysisService {
+  private extractJsonFromMarkdown(text: string): string {
+    // Remove markdown code blocks if present
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      return jsonMatch[1].trim();
+    }
+    return text.trim();
+  }
+
   async analyzeQuestion(
     question: string, 
     repositoryData: any, 
@@ -91,7 +100,9 @@ Please analyze this question in the context of the repository data and provide i
         messages,
       });
 
-      const result = JSON.parse((response.content[0] as any).text || "{}");
+      const responseText = (response.content[0] as any).text || "{}";
+      const cleanedJson = this.extractJsonFromMarkdown(responseText);
+      const result = JSON.parse(cleanedJson);
       
       return {
         answer: result.answer || "I apologize, but I couldn't generate a proper response to your question.",
