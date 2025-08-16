@@ -213,21 +213,22 @@ export class GitHubService {
 
   private async getRepositoryTotals(owner: string, repo: string) {
     try {
-      // Get repository metadata first - this gives us reliable open issues count
+      // Get repository metadata first
       const repoData = await this.octokit.rest.repos.get({ owner, repo }).catch(() => ({ data: {} }));
       
       // Get more accurate counts using pagination and Link headers
-      const [totalCommits, totalContributors, totalIssues] = await Promise.all([
+      const [totalCommits, totalContributors, totalIssues, openIssues] = await Promise.all([
         this.getAccurateCommitCount(owner, repo),
         this.getAccurateContributorCount(owner, repo),
         this.getAccurateIssueCount(owner, repo),
+        this.getAccurateOpenIssuesCount(owner, repo), // Use accurate open issues count (excludes PRs)
       ]);
 
       return {
         totalCommits,
         totalContributors,
         totalIssues,
-        openIssues: (repoData.data as any)?.open_issues_count || 0, // Open issues from repo metadata
+        openIssues, // Now using accurate count that excludes pull requests
         // Additional metadata from repository
         stars: (repoData.data as any)?.stargazers_count || 0,
         forks: (repoData.data as any)?.forks_count || 0,
@@ -379,6 +380,65 @@ export class GitHubService {
       return response.data.length;
     } catch (error) {
       console.error("Error getting accurate issue count:", error);
+      return 0;
+    }
+  }
+
+  private async getAccurateOpenIssuesCount(owner: string, repo: string): Promise<number> {
+    try {
+      // Get only open issues, excluding pull requests
+      const response = await this.octokit.rest.issues.listForRepo({
+        owner,
+        repo,
+        state: "open",
+        per_page: 100,
+        page: 1,
+      });
+      
+      // Filter out pull requests (issues with pull_request property are actually PRs)
+      const actualIssues = response.data.filter(issue => !issue.pull_request);
+      
+      // Check Link header for total pages
+      const linkHeader = response.headers.link;
+      if (linkHeader) {
+        const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
+        if (lastPageMatch) {
+          const lastPage = parseInt(lastPageMatch[1]);
+          
+          // For larger repos, estimate based on first page ratio
+          if (lastPage > 10) {
+            const issueRatio = actualIssues.length / response.data.length;
+            return Math.round(lastPage * 100 * issueRatio * 0.9); // Conservative estimate
+          }
+          
+          // For smaller repos, get exact count by fetching all pages
+          let totalOpenIssues = actualIssues.length;
+          for (let page = 2; page <= Math.min(lastPage, 10); page++) {
+            try {
+              const pageResponse = await this.octokit.rest.issues.listForRepo({
+                owner,
+                repo,
+                state: "open",
+                per_page: 100,
+                page,
+              });
+              const pageIssues = pageResponse.data.filter(issue => !issue.pull_request);
+              totalOpenIssues += pageIssues.length;
+            } catch (error) {
+              // If rate limited, estimate remaining pages
+              const issueRatio = totalOpenIssues / ((page - 1) * 100);
+              totalOpenIssues += Math.round((lastPage - page + 1) * 100 * issueRatio);
+              break;
+            }
+          }
+          return totalOpenIssues;
+        }
+      }
+      
+      // Fallback: return the count from first page, filtered for actual issues
+      return actualIssues.length;
+    } catch (error) {
+      console.error("Error getting accurate open issues count:", error);
       return 0;
     }
   }
