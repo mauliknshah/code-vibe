@@ -25,12 +25,6 @@ export default function AnalyticsSidebar({ repository, analysis }: AnalyticsSide
     date: commit.commit?.author?.date || new Date().toISOString(),
   }));
 
-  // Calculate this week's commits
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  const thisWeekCommits = commits.filter((commit: any) => 
-    new Date(commit.commit?.author?.date || 0) > oneWeekAgo
-  ).length;
 
   return (
     <div className="w-80 bg-github-surface border-l border-github-border p-6 overflow-y-auto" data-testid="analytics-sidebar">
@@ -38,29 +32,6 @@ export default function AnalyticsSidebar({ repository, analysis }: AnalyticsSide
         <div>
           <h3 className="text-lg font-semibold text-github-text mb-4">Repository Analytics</h3>
           
-          {/* Commit Activity */}
-          <Card className="bg-github-dark border-github-border mb-4">
-            <CardContent className="p-4">
-              <h4 className="text-sm font-medium text-github-text mb-3 flex items-center">
-                <i className="fas fa-chart-line text-github-blue mr-2"></i>
-                Commit Activity
-              </h4>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-github-muted">This Week</span>
-                  <span className="text-sm font-mono text-github-text" data-testid="text-weekly-commits">
-                    {thisWeekCommits}
-                  </span>
-                </div>
-                <div className="w-full bg-github-border rounded-full h-2">
-                  <div 
-                    className="bg-github-blue h-2 rounded-full transition-all"
-                    style={{ width: `${Math.min((thisWeekCommits / 50) * 100, 100)}%` }}
-                  ></div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Top Contributors */}
           <Card className="bg-github-dark border-github-border mb-4">

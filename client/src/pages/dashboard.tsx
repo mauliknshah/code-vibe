@@ -102,37 +102,58 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Insights */}
-        {repositoryAnalysis && (
-          <div className="p-4 border-b border-github-border">
-            <h3 className="text-sm font-semibold text-github-text mb-3">Quick Insights</h3>
-            <div className="space-y-2">
-              <div className="bg-github-dark p-3 rounded-lg border border-github-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-github-muted">Total Commits</span>
-                  <span className="text-sm font-mono text-github-text" data-testid="text-total-commits">
-                    {(repositoryAnalysis.codeMetrics as any)?.totalCommits || 0}
-                  </span>
+        {repositoryAnalysis && (() => {
+          // Calculate this week's commits
+          const commits = (repositoryAnalysis.commits as any[]) || [];
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+          const thisWeekCommits = commits.filter((commit: any) => 
+            new Date(commit.commit?.author?.date || 0) > oneWeekAgo
+          ).length;
+          
+          return (
+            <div className="p-4 border-b border-github-border">
+              <h3 className="text-sm font-semibold text-github-text mb-3">Quick Insights</h3>
+              <div className="space-y-2">
+                {/* Commit Activity */}
+                <div className="bg-github-dark p-3 rounded-lg border border-github-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-github-muted flex items-center">
+                      <i className="fas fa-chart-line text-github-blue mr-2"></i>
+                      This Week
+                    </span>
+                    <span className="text-sm font-mono text-github-text" data-testid="text-weekly-commits">
+                      {thisWeekCommits}
+                    </span>
+                  </div>
+                  <div className="w-full bg-github-border rounded-full h-2">
+                    <div 
+                      className="bg-github-blue h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min((thisWeekCommits / 50) * 100, 100)}%` }}
+                    ></div>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-github-dark p-3 rounded-lg border border-github-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-github-muted">Contributors</span>
-                  <span className="text-sm font-mono text-github-text" data-testid="text-total-contributors">
-                    {(repositoryAnalysis.codeMetrics as any)?.totalContributors || 0}
-                  </span>
+                
+                <div className="bg-github-dark p-3 rounded-lg border border-github-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-github-muted">Contributors</span>
+                    <span className="text-sm font-mono text-github-text" data-testid="text-total-contributors">
+                      {(repositoryAnalysis.codeMetrics as any)?.totalContributors || 0}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-github-dark p-3 rounded-lg border border-github-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-github-muted">Open Issues</span>
-                  <span className="text-sm font-mono text-github-text" data-testid="text-open-issues">
-                    {(repositoryAnalysis.codeMetrics as any)?.openIssues || 0}
-                  </span>
+                <div className="bg-github-dark p-3 rounded-lg border border-github-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-github-muted">Open Issues</span>
+                    <span className="text-sm font-mono text-github-text" data-testid="text-open-issues">
+                      {(repositoryAnalysis.codeMetrics as any)?.openIssues || 0}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Navigation */}
         <nav className="flex-1 p-4">
