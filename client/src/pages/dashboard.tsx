@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import RepositorySearch from "@/components/repository-search";
 import ChatInterface from "@/components/chat-interface";
 import AnalyticsSidebar from "@/components/analytics-sidebar";
+import CodeOwnershipChart from "@/components/code-ownership-chart";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -46,8 +46,12 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex bg-github-dark text-github-text" data-testid="dashboard">
-      {/* Sidebar */}
-      <div className="w-72 bg-github-surface border-r border-github-border flex flex-col">
+      {/* Main Layout */}
+      <div className="flex-1 flex">
+        {/* Left Column */}
+        <div className="flex flex-col">
+          {/* Top-Left: Repository Sidebar */}
+          <div className="w-72 bg-github-surface border-r border-github-border flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-github-border">
           <div className="flex items-center space-x-3">
@@ -178,8 +182,20 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Bottom-Left: Code Ownership Chart */}
+      {repositoryAnalysis && (
+        <div className="w-72 bg-github-surface border-r border-github-border border-t overflow-y-auto" style={{ height: '50vh' }}>
+          <div className="p-4">
+            <CodeOwnershipChart 
+              commits={(repositoryAnalysis.commits as any[]) || []}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
         <div className="bg-github-surface border-b border-github-border px-8 py-4">
           <div className="flex items-center justify-between">
@@ -208,6 +224,7 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+    </div>
 
       {/* Repository Search Modal */}
       {showRepoModal && (
