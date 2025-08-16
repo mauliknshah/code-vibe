@@ -210,3 +210,69 @@
     border-color: hsl(212 92% 45% / 0.2);
   }
 }
+
+/* Custom markdown styles for chat messages */
+.prose.prose-invert {
+  color: var(--github-text);
+}
+
+.prose.prose-invert h1,
+.prose.prose-invert h2,
+.prose.prose-invert h3,
+.prose.prose-invert h4,
+.prose.prose-invert h5,
+.prose.prose-invert h6 {
+  color: var(--github-text);
+}
+
+.prose.prose-invert strong {
+  color: var(--github-text);
+  font-weight: 600;
+}
+
+.prose.prose-invert em {
+  color: var(--github-text);
+  font-style: italic;
+}
+
+.prose.prose-invert code {
+  color: var(--github-blue);
+  background-color: var(--github-border);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+.prose.prose-invert pre {
+  background-color: var(--github-border);
+  border: 1px solid var(--github-border);
+  border-radius: 0.5rem;
+}
+
+.prose.prose-invert pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.prose.prose-invert blockquote {
+  border-left-color: var(--github-border);
+  color: var(--github-muted);
+}
+
+.prose.prose-invert ul,
+.prose.prose-invert ol {
+  color: var(--github-text);
+}
+
+.prose.prose-invert li {
+  color: var(--github-text);
+}
+
+.prose.prose-invert a {
+  color: var(--github-blue);
+}
+
+.prose.prose-invert a:hover {
+  color: var(--github-blue);
+  opacity: 0.8;
+}

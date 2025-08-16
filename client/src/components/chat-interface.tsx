@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -229,10 +231,10 @@ export default function ChatInterface({ repository, repositoryAnalysis }: ChatIn
                     <div className="flex-1">
                       <Card className="bg-github-surface border-github-border rounded-2xl rounded-tl-lg">
                         <CardContent className="p-6">
-                          <div className="prose prose-sm text-github-text max-w-none">
-                            <div className="whitespace-pre-wrap" data-testid={`message-assistant-${index}`}>
+                          <div className="prose prose-sm prose-invert text-github-text max-w-none" data-testid={`message-assistant-${index}`}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {msg.content}
-                            </div>
+                            </ReactMarkdown>
                           </div>
                           
                           {/* Message Actions */}
