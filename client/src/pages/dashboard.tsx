@@ -125,8 +125,8 @@ export default function Dashboard() {
               <div className="bg-github-dark p-3 rounded-lg border border-github-border">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-github-muted">Open Issues</span>
-                  <span className="text-sm font-mono text-github-text" data-testid="text-total-issues">
-                    {(repositoryAnalysis.codeMetrics as any)?.totalIssues || 0}
+                  <span className="text-sm font-mono text-github-text" data-testid="text-open-issues">
+                    {(repositoryAnalysis.codeMetrics as any)?.openIssues || 0}
                   </span>
                 </div>
               </div>

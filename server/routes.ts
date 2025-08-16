@@ -70,11 +70,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           releases: analysisData.releases,
           contributors: analysisData.contributors,
           codeMetrics: {
-            totalCommits: analysisData.commits.length,
-            totalPRs: analysisData.pullRequests.length,
-            totalIssues: analysisData.issues.length,
-            totalReleases: analysisData.releases.length,
-            totalContributors: analysisData.contributors.length,
+            // Use accurate totals from GitHub API search instead of array lengths
+            totalCommits: analysisData.totals.totalCommits,
+            totalPRs: analysisData.pullRequests.length, // PRs don't have pagination issues usually
+            totalIssues: analysisData.totals.totalIssues,
+            totalReleases: analysisData.releases.length, // Releases are usually limited
+            totalContributors: analysisData.totals.totalContributors,
+            openIssues: analysisData.totals.openIssues,
           },
         });
       } else {
@@ -86,11 +88,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           releases: analysisData.releases,
           contributors: analysisData.contributors,
           codeMetrics: {
-            totalCommits: analysisData.commits.length,
-            totalPRs: analysisData.pullRequests.length,
-            totalIssues: analysisData.issues.length,
-            totalReleases: analysisData.releases.length,
-            totalContributors: analysisData.contributors.length,
+            // Use accurate totals from GitHub API search instead of array lengths
+            totalCommits: analysisData.totals.totalCommits,
+            totalPRs: analysisData.pullRequests.length, // PRs don't have pagination issues usually
+            totalIssues: analysisData.totals.totalIssues,
+            totalReleases: analysisData.releases.length, // Releases are usually limited
+            totalContributors: analysisData.totals.totalContributors,
+            openIssues: analysisData.totals.openIssues,
           },
         });
       }

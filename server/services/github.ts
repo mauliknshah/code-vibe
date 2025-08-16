@@ -60,13 +60,14 @@ export class GitHubService {
 
   async getRepositoryDetails(owner: string, repo: string) {
     try {
-      const [repoDetails, commits, pullRequests, issues, releases, contributors] = await Promise.all([
+      const [repoDetails, commits, pullRequests, issues, releases, contributors, totals] = await Promise.all([
         this.octokit.rest.repos.get({ owner, repo }),
         this.getCommits(owner, repo),
         this.getPullRequests(owner, repo),
         this.getIssues(owner, repo),
         this.getReleases(owner, repo),
         this.getContributors(owner, repo),
+        this.getRepositoryTotals(owner, repo),
       ]);
 
       return {
@@ -76,6 +77,7 @@ export class GitHubService {
         issues,
         releases,
         contributors,
+        totals,
       };
     } catch (error) {
       console.error("Error fetching repository details:", error);
@@ -85,12 +87,30 @@ export class GitHubService {
 
   private async getCommits(owner: string, repo: string) {
     try {
-      const response = await this.octokit.rest.repos.listCommits({
-        owner,
-        repo,
-        per_page: 100,
-      });
-      return response.data;
+      // Get recent commits with pagination (limit to 300 for performance)
+      const commits = [];
+      let page = 1;
+      const maxPages = 3; // 300 commits total
+      
+      while (page <= maxPages) {
+        const response = await this.octokit.rest.repos.listCommits({
+          owner,
+          repo,
+          per_page: 100,
+          page,
+        });
+        
+        commits.push(...response.data);
+        
+        // If we got less than 100 results, we've reached the end
+        if (response.data.length < 100) {
+          break;
+        }
+        
+        page++;
+      }
+      
+      return commits;
     } catch (error) {
       console.error("Error fetching commits:", error);
       return [];
@@ -114,13 +134,31 @@ export class GitHubService {
 
   private async getIssues(owner: string, repo: string) {
     try {
-      const response = await this.octokit.rest.issues.listForRepo({
-        owner,
-        repo,
-        state: "all",
-        per_page: 100,
-      });
-      return response.data;
+      // Get recent issues with pagination (limit to 500 for performance)
+      const issues = [];
+      let page = 1;
+      const maxPages = 5; // 500 issues total
+      
+      while (page <= maxPages) {
+        const response = await this.octokit.rest.issues.listForRepo({
+          owner,
+          repo,
+          state: "all",
+          per_page: 100,
+          page,
+        });
+        
+        issues.push(...response.data);
+        
+        // If we got less than 100 results, we've reached the end
+        if (response.data.length < 100) {
+          break;
+        }
+        
+        page++;
+      }
+      
+      return issues;
     } catch (error) {
       console.error("Error fetching issues:", error);
       return [];
@@ -143,15 +181,101 @@ export class GitHubService {
 
   private async getContributors(owner: string, repo: string) {
     try {
-      const response = await this.octokit.rest.repos.listContributors({
-        owner,
-        repo,
-        per_page: 100,
-      });
-      return response.data;
+      // Get all contributors with pagination
+      const contributors = [];
+      let page = 1;
+      const maxPages = 5; // 500 contributors max
+      
+      while (page <= maxPages) {
+        const response = await this.octokit.rest.repos.listContributors({
+          owner,
+          repo,
+          per_page: 100,
+          page,
+        });
+        
+        contributors.push(...response.data);
+        
+        // If we got less than 100 results, we've reached the end
+        if (response.data.length < 100) {
+          break;
+        }
+        
+        page++;
+      }
+      
+      return contributors;
     } catch (error) {
       console.error("Error fetching contributors:", error);
       return [];
+    }
+  }
+
+  private async getRepositoryTotals(owner: string, repo: string) {
+    try {
+      // Get accurate totals using GitHub's search API and repository metadata
+      const [commitsSearch, contributorsSearch, issuesSearch, repoData] = await Promise.all([
+        // Get total commit count using search API
+        this.octokit.rest.search.commits({
+          q: `repo:${owner}/${repo}`,
+          per_page: 1, // We only need the total count
+        }).catch(() => ({ data: { total_count: 0 } })),
+        
+        // Contributors count from the repository endpoint
+        this.octokit.rest.repos.listContributors({
+          owner,
+          repo,
+          per_page: 1,
+        }).then(response => {
+          // GitHub doesn't provide total count for contributors directly
+          // We'll need to estimate or use the Link header if available
+          const linkHeader = response.headers.link;
+          if (linkHeader) {
+            const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
+            if (lastPageMatch) {
+              return { total_count: parseInt(lastPageMatch[1]) * 100 }; // Rough estimate
+            }
+          }
+          return { total_count: response.data.length };
+        }).catch(() => ({ total_count: 0 })),
+        
+        // Get total issues count using search API
+        this.octokit.rest.search.issuesAndPullRequests({
+          q: `repo:${owner}/${repo} is:issue`,
+          per_page: 1, // We only need the total count
+        }).catch(() => ({ data: { total_count: 0 } })),
+        
+        // Get repository metadata
+        this.octokit.rest.repos.get({ owner, repo }).catch(() => ({ data: {} })),
+      ]);
+
+      // Also get open issues count specifically
+      const openIssuesSearch = await this.octokit.rest.search.issuesAndPullRequests({
+        q: `repo:${owner}/${repo} is:issue is:open`,
+        per_page: 1,
+      }).catch(() => ({ data: { total_count: 0 } }));
+
+      return {
+        totalCommits: commitsSearch.data.total_count || 0,
+        totalContributors: contributorsSearch.total_count || 0,
+        totalIssues: issuesSearch.data.total_count || 0,
+        openIssues: openIssuesSearch.data.total_count || 0,
+        // Additional metadata from repository
+        stars: (repoData.data as any)?.stargazers_count || 0,
+        forks: (repoData.data as any)?.forks_count || 0,
+        watchers: (repoData.data as any)?.watchers_count || 0,
+      };
+    } catch (error) {
+      console.error("Error fetching repository totals:", error);
+      return {
+        totalCommits: 0,
+        totalContributors: 0,
+        totalIssues: 0,
+        openIssues: 0,
+        stars: 0,
+        forks: 0,
+        watchers: 0,
+      };
     }
   }
 
