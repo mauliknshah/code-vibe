@@ -277,42 +277,4 @@
   opacity: 0.8;
 }
 
-/* Resizable panel handle styles */
-[data-panel-resize-handle-enabled] {
-  transition: all 0.2s ease;
-  position: relative;
-}
 
-[data-panel-resize-handle-enabled]:hover {
-  background-color: var(--github-blue) !important;
-  opacity: 0.8;
-}
-
-[data-panel-resize-handle-enabled]:active {
-  background-color: var(--github-blue) !important;
-  opacity: 1;
-}
-
-/* Panel resize handle visual indicator */
-[data-panel-resize-handle-enabled]::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 4px;
-  height: 20px;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent,
-    transparent 2px,
-    var(--github-muted) 2px,
-    var(--github-muted) 4px
-  );
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-[data-panel-resize-handle-enabled]:hover::after {
-  opacity: 1;
-}
