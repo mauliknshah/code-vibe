@@ -386,60 +386,51 @@ export class GitHubService {
 
   private async getAccurateOpenIssuesCount(owner: string, repo: string): Promise<number> {
     try {
-      // Get only open issues, excluding pull requests
-      const response = await this.octokit.rest.issues.listForRepo({
-        owner,
-        repo,
-        state: "open",
-        per_page: 100,
-        page: 1,
+      // Use GitHub Search API for more accurate counts
+      // Search for open issues (excluding pull requests) in the repository
+      const searchResponse = await this.octokit.rest.search.issuesAndPullRequests({
+        q: `repo:${owner}/${repo} is:issue is:open`,
+        per_page: 1, // We only need the total count, not the actual results
       });
       
-      // Filter out pull requests (issues with pull_request property are actually PRs)
-      const actualIssues = response.data.filter(issue => !issue.pull_request);
-      
-      // Check Link header for total pages
-      const linkHeader = response.headers.link;
-      if (linkHeader) {
-        const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
-        if (lastPageMatch) {
-          const lastPage = parseInt(lastPageMatch[1]);
-          
-          // For larger repos, estimate based on first page ratio
-          if (lastPage > 10) {
-            const issueRatio = actualIssues.length / response.data.length;
-            return Math.round(lastPage * 100 * issueRatio * 0.9); // Conservative estimate
-          }
-          
-          // For smaller repos, get exact count by fetching all pages
-          let totalOpenIssues = actualIssues.length;
-          for (let page = 2; page <= Math.min(lastPage, 10); page++) {
-            try {
-              const pageResponse = await this.octokit.rest.issues.listForRepo({
-                owner,
-                repo,
-                state: "open",
-                per_page: 100,
-                page,
-              });
-              const pageIssues = pageResponse.data.filter(issue => !issue.pull_request);
-              totalOpenIssues += pageIssues.length;
-            } catch (error) {
-              // If rate limited, estimate remaining pages
-              const issueRatio = totalOpenIssues / ((page - 1) * 100);
-              totalOpenIssues += Math.round((lastPage - page + 1) * 100 * issueRatio);
-              break;
-            }
-          }
-          return totalOpenIssues;
-        }
-      }
-      
-      // Fallback: return the count from first page, filtered for actual issues
-      return actualIssues.length;
+      return searchResponse.data.total_count;
     } catch (error) {
-      console.error("Error getting accurate open issues count:", error);
-      return 0;
+      console.error("Error getting accurate open issues count via search API:", error);
+      
+      // Fallback to the original method if search API fails
+      try {
+        // Get only open issues, excluding pull requests
+        const response = await this.octokit.rest.issues.listForRepo({
+          owner,
+          repo,
+          state: "open",
+          per_page: 100,
+          page: 1,
+        });
+        
+        // Filter out pull requests (issues with pull_request property are actually PRs)
+        const actualIssues = response.data.filter(issue => !issue.pull_request);
+        
+        // Check Link header for total pages
+        const linkHeader = response.headers.link;
+        if (linkHeader) {
+          const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
+          if (lastPageMatch) {
+            const lastPage = parseInt(lastPageMatch[1]);
+            
+            // Calculate the ratio of actual issues to total items in first page
+            const issueRatio = actualIssues.length / response.data.length;
+            // Apply this ratio to estimate total open issues
+            return Math.round(lastPage * 100 * issueRatio);
+          }
+        }
+        
+        // Fallback: return the count from first page, filtered for actual issues
+        return actualIssues.length;
+      } catch (fallbackError) {
+        console.error("Error with fallback open issues count:", fallbackError);
+        return 0;
+      }
     }
   }
 
