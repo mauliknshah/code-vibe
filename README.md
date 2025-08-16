@@ -2,6 +2,8 @@
 
 AI-Powered GitHub Repository Analysis Platform
 
+**🌐 Live Demo:** [https://code-vibe-maulik.replit.app](https://code-vibe-maulik.replit.app)
+
 ## Overview
 
 CodeInsight is a sophisticated web application that provides intelligent analysis and insights for GitHub repositories. Built with modern web technologies, it combines repository metadata, commit history, and AI-driven analysis to deliver deep insights about development patterns, contributor activities, and project evolution.
