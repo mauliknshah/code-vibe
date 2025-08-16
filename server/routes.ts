@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { GitHubService } from "./services/github";
 import { codeAnalysisService } from "./services/openai";
+import { Neo4jService } from "./services/neo4j";
+import { registerNeo4jRoutes } from "./routes/neo4j";
 import { insertRepositorySchema, insertConversationSchema, insertMessageSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -59,6 +61,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch and store repository analysis data
       const [owner, repo] = repository.fullName.split('/');
       const analysisData = await githubService.getRepositoryDetails(owner, repo);
+      
+      // Store in Neo4j graph database if available
+      try {
+        const neo4jConfig = {
+          uri: process.env.NEO4J_URI || 'bolt://localhost:7687',
+          username: process.env.NEO4J_USERNAME || 'neo4j',
+          password: process.env.NEO4J_PASSWORD || 'password'
+        };
+        
+        const neo4jService = Neo4jService.getInstance(neo4jConfig);
+        const isConnected = await neo4jService.testConnection();
+        
+        if (isConnected) {
+          // Delete existing graph for this repository to refresh data
+          await neo4jService.deleteRepositoryGraph(repository.fullName);
+          // Create new graph with latest data
+          await neo4jService.createRepositoryGraph(analysisData);
+          console.log(`📊 Created Neo4j graph for ${repository.fullName}`);
+        } else {
+          console.log(`⚠️ Neo4j not available, skipping graph creation for ${repository.fullName}`);
+        }
+      } catch (neo4jError) {
+        console.log(`⚠️ Neo4j error (continuing without graph): ${neo4jError instanceof Error ? neo4jError.message : 'Unknown error'}`);
+      }
       
       // Store or update analysis
       let analysis = await storage.getRepositoryAnalysis(repository.id);
@@ -224,6 +250,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to process message" });
     }
   });
+
+  // Register Neo4j graph routes
+  registerNeo4jRoutes(app);
 
   const httpServer = createServer(app);
   return httpServer;
