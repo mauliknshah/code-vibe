@@ -30,9 +30,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "GitHub OAuth not configured" });
     }
 
-    const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/github/callback`;
+    // Use HTTPS for deployed apps and dynamic protocol for development
+    const protocol = process.env.NODE_ENV === 'production' || req.get('host')?.includes('replit.app') ? 'https' : req.protocol;
+    const redirectUri = `${protocol}://${req.get('host')}/api/auth/github/callback`;
     const scope = "repo,user:email";
     const state = Math.random().toString(36).substring(7);
+    
+    console.log('OAuth redirect URI:', redirectUri); // Debug log
     
     (req.session as any).oauthState = state;
     
