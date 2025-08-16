@@ -4,7 +4,6 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import RepositorySearch from "@/components/repository-search";
 import ChatInterface from "@/components/chat-interface";
 import AnalyticsSidebar from "@/components/analytics-sidebar";
-import { GraphInsights } from "@/components/graph-insights";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -202,17 +201,10 @@ export default function Dashboard() {
           
           {/* Analytics Sidebar */}
           {repositoryAnalysis && (
-            <div className="w-80 border-l border-github-border flex flex-col bg-github-surface">
-              <AnalyticsSidebar 
-                repository={selectedRepository!}
-                analysis={repositoryAnalysis}
-              />
-              
-              {/* Graph Insights */}
-              <div className="p-4 border-t border-github-border overflow-y-auto">
-                <GraphInsights repositoryFullName={selectedRepository!.fullName} />
-              </div>
-            </div>
+            <AnalyticsSidebar 
+              repository={selectedRepository!}
+              analysis={repositoryAnalysis}
+            />
           )}
         </div>
       </div>

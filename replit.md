@@ -78,15 +78,7 @@ The application works with public GitHub repositories without requiring authenti
 - **CSS Variables**: Dynamic theming system with light/dark mode support
 
 ### Database and ORM
-- **PostgreSQL**: Primary relational database for structured data storage
-- **Neo4j**: Graph database for advanced repository relationship analysis
+- **Neon Database**: Serverless PostgreSQL hosting solution
 - **Drizzle ORM**: Type-safe database toolkit with schema validation
 - **Drizzle Kit**: Database management and migration tools
 - **Zod**: Runtime type validation for database schemas and API inputs
-
-### Graph Database Integration
-- **Neo4j Driver**: Native integration with Neo4j graph database
-- **Semantic Relationships**: Complex repository relationships (contributors, commits, PRs, issues, releases)
-- **Graph Analytics**: Advanced insights into collaboration patterns, code evolution, and project dynamics
-- **Separate Graphs**: Each repository maintains its own isolated graph namespace
-- **Real-time Analysis**: Live graph updates when repository data is refreshed

@@ -25,7 +25,6 @@ CodeInsight is a sophisticated web application that provides intelligent analysi
 - **Commit Activity Tracking**: Weekly commit analysis and trends
 - **Contributor Statistics**: Team dynamics and contribution patterns
 - **Interactive Charts**: Visual representation of repository health and activity
-- **Graph Database Insights**: Neo4j-powered relationship analysis and collaboration patterns
 
 ### 💬 Intelligent Chat
 - **Natural Language Queries**: Ask questions about your repository in plain English
@@ -46,14 +45,12 @@ CodeInsight is a sophisticated web application that provides intelligent analysi
 ### Backend
 - **Express.js** with TypeScript in ESM environment
 - **Drizzle ORM** with PostgreSQL for type-safe database operations
-- **Neo4j Graph Database** for advanced relationship analysis and insights
 - **Octokit** for comprehensive GitHub API integration
 - **Anthropic Claude** for AI-powered repository analysis
 - **Vite** integration for optimized development experience
 
 ### Database
-- **PostgreSQL** as the primary data store for structured data
-- **Neo4j** as the graph database for relationship analysis
+- **PostgreSQL** as the primary data store
 - **Drizzle Kit** for schema migrations and management
 - **In-memory storage** option for development and testing
 
