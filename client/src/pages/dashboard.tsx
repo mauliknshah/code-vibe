@@ -136,9 +136,12 @@ export default function Dashboard() {
                 
                 <div className="bg-github-dark p-3 rounded-lg border border-github-border">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-github-muted">Contributors</span>
-                    <span className="text-sm font-mono text-github-text" data-testid="text-total-contributors">
-                      {(repositoryAnalysis.codeMetrics as any)?.totalContributors || 0}
+                    <span className="text-sm text-github-muted flex items-center">
+                      <i className="fas fa-star text-yellow-400 mr-2"></i>
+                      Stars
+                    </span>
+                    <span className="text-sm font-mono text-github-text" data-testid="text-repository-stars">
+                      {selectedRepository?.stars?.toLocaleString() || 0}
                     </span>
                   </div>
                 </div>
