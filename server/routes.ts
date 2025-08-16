@@ -25,8 +25,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // GitHub OAuth routes
   app.get("/api/auth/github", (req, res) => {
+    console.log('GitHub OAuth request received from:', req.get('host'));
+    console.log('User agent:', req.get('user-agent'));
+    console.log('Referer:', req.get('referer'));
+    
     const clientId = process.env.GITHUB_CLIENT_ID;
+    console.log('Client ID exists:', !!clientId);
+    
     if (!clientId) {
+      console.log('Error: GitHub OAuth not configured');
       return res.status(500).json({ message: "GitHub OAuth not configured" });
     }
 
@@ -35,11 +42,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const scope = "repo,user:email";
     const state = Math.random().toString(36).substring(7);
     
-    console.log('OAuth redirect URI:', redirectUri); // Debug log
+    console.log('OAuth redirect URI:', redirectUri);
+    console.log('Generated state:', state);
     
     (req.session as any).oauthState = state;
     
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}`;
+    console.log('Redirecting to GitHub with URL:', authUrl);
     res.redirect(authUrl);
   });
 
