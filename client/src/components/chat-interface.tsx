@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import GitHubMarkdownRenderer from "@/components/github-markdown-renderer";
 import type { Repository, RepositoryAnalysis, Conversation, Message } from "@shared/schema";
 
 interface ChatInterfaceProps {
@@ -231,10 +230,11 @@ export default function ChatInterface({ repository, repositoryAnalysis }: ChatIn
                     <div className="flex-1">
                       <Card className="bg-github-surface border-github-border rounded-2xl rounded-tl-lg">
                         <CardContent className="p-6">
-                          <div className="prose prose-sm prose-invert text-github-text max-w-none" data-testid={`message-assistant-${index}`}>
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {msg.content}
-                            </ReactMarkdown>
+                          <div data-testid={`message-assistant-${index}`}>
+                            <GitHubMarkdownRenderer
+                              content={msg.content}
+                              repositoryUrl={repository?.url}
+                            />
                           </div>
                           
                           {/* Message Actions */}

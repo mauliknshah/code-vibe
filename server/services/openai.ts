@@ -65,9 +65,15 @@ When answering questions:
 2. Use coding metaphors that make complex patterns relatable ("This commit pattern looks like someone's been refactoring on caffeine")
 3. Include relevant memes or humorous references when they genuinely enhance understanding
 4. Provide specific technical examples from the actual codebase data
-5. Generate 2-3 follow-up questions that dig deeper into technical aspects
-6. Balance being informative with being genuinely entertaining for developers
-7. Always respond in JSON format with the specified structure
+5. **Always include specific references** when mentioning commits, pull requests, issues, or releases:
+   - Use commit IDs (first 7 characters): "In commit a1b2c3d, the team..."
+   - Use PR numbers: "Pull request #123 shows..."
+   - Use issue numbers: "This was discussed in issue #456..."
+   - Use release tags: "Since release v1.2.3..."
+6. Make these references actionable by formatting them clearly in your response
+7. Generate 2-3 follow-up questions that dig deeper into technical aspects
+8. Balance being informative with being genuinely entertaining for developers
+9. Always respond in JSON format with the specified structure
 
 Focus on geeky insights about:
 - Code archaeology: "What stories do the commits tell?"
@@ -140,8 +146,34 @@ Please analyze this question in the context of the repository data and provide i
       lastActivity: data.commits?.[0]?.commit?.author?.date || 'Unknown'
     };
 
+    // Format recent commits with detailed information
+    const recentCommits = data.commits?.slice(0, 10)?.map((c: any) => 
+      `- Commit ${c.sha?.substring(0, 7)}: "${c.commit?.message?.split('\n')[0] || 'No message'}" by ${c.commit?.author?.name || 'Unknown'} on ${c.commit?.author?.date?.substring(0, 10) || 'Unknown date'}`
+    ).join('\n') || 'No recent commits';
+
+    // Format recent pull requests
+    const recentPRs = data.pullRequests?.slice(0, 10)?.map((pr: any) => 
+      `- PR #${pr.number}: "${pr.title}" by ${pr.user?.login || 'Unknown'} (${pr.state}) - ${pr.created_at?.substring(0, 10) || 'Unknown date'}`
+    ).join('\n') || 'No recent pull requests';
+
+    // Format recent issues
+    const recentIssues = data.issues?.slice(0, 10)?.map((issue: any) => 
+      `- Issue #${issue.number}: "${issue.title}" by ${issue.user?.login || 'Unknown'} (${issue.state}) - ${issue.created_at?.substring(0, 10) || 'Unknown date'} [${(issue.labels || []).map((l: any) => l.name).join(', ')}]`
+    ).join('\n') || 'No recent issues';
+
+    // Format recent releases
+    const recentReleases = data.releases?.slice(0, 5)?.map((release: any) => 
+      `- Release ${release.tag_name}: "${release.name || 'Unnamed'}" published on ${release.published_at?.substring(0, 10) || 'Unknown date'}`
+    ).join('\n') || 'No releases';
+
+    // Format top contributors
+    const topContributors = data.contributors?.slice(0, 10)?.map((contributor: any) => 
+      `- ${contributor.login}: ${contributor.contributions} contributions`
+    ).join('\n') || 'No contributor data';
+
     return `
 Repository: ${data.repository?.full_name || 'Unknown'}
+Repository URL: ${data.repository?.html_url || 'Unknown'}
 Total Commits: ${summary.commits}
 Pull Requests: ${summary.pullRequests}
 Issues: ${summary.issues}
@@ -150,9 +182,20 @@ Contributors: ${summary.contributors}
 Primary Language: ${summary.languages.join(', ') || 'Unknown'}
 Last Activity: ${summary.lastActivity}
 
-Recent commits: ${data.commits?.slice(0, 5)?.map((c: any) => 
-  `- ${c.commit?.message?.split('\n')[0] || 'No message'} by ${c.commit?.author?.name || 'Unknown'}`
-).join('\n') || 'No recent commits'}
+RECENT COMMITS (with commit IDs):
+${recentCommits}
+
+RECENT PULL REQUESTS (with PR numbers):
+${recentPRs}
+
+RECENT ISSUES (with issue numbers):
+${recentIssues}
+
+RECENT RELEASES (with release tags):
+${recentReleases}
+
+TOP CONTRIBUTORS:
+${topContributors}
 `;
   }
 
