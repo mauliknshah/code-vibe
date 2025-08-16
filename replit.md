@@ -7,7 +7,6 @@ CodeInsight is a full-stack web application that provides AI-powered analysis an
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
-Chat agent personality: Geeky AI assistant with technical context, coding metaphors, and relevant memes when appropriate.
 
 ## System Architecture
 
