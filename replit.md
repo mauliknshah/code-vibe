@@ -49,6 +49,7 @@ The application works with public GitHub repositories without requiring authenti
 - **Public Repository Access**: Direct access to GitHub API for public repository data
 - **No Authentication Required**: Users can analyze any public repository by URL or search
 - **Rate Limited Access**: GitHub API rate limits apply to unauthenticated requests
+- **Accurate Metrics**: Uses GitHub Search API for precise issue counts excluding pull requests
 - **Repository Analysis**: Full analysis capabilities for publicly accessible repositories
 
 ## External Dependencies
