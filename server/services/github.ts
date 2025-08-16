@@ -213,53 +213,21 @@ export class GitHubService {
 
   private async getRepositoryTotals(owner: string, repo: string) {
     try {
-      // Get accurate totals using GitHub's search API and repository metadata
-      const [commitsSearch, contributorsSearch, issuesSearch, repoData] = await Promise.all([
-        // Get total commit count using search API
-        this.octokit.rest.search.commits({
-          q: `repo:${owner}/${repo}`,
-          per_page: 1, // We only need the total count
-        }).catch(() => ({ data: { total_count: 0 } })),
-        
-        // Contributors count from the repository endpoint
-        this.octokit.rest.repos.listContributors({
-          owner,
-          repo,
-          per_page: 1,
-        }).then(response => {
-          // GitHub doesn't provide total count for contributors directly
-          // We'll need to estimate or use the Link header if available
-          const linkHeader = response.headers.link;
-          if (linkHeader) {
-            const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
-            if (lastPageMatch) {
-              return { total_count: parseInt(lastPageMatch[1]) * 100 }; // Rough estimate
-            }
-          }
-          return { total_count: response.data.length };
-        }).catch(() => ({ total_count: 0 })),
-        
-        // Get total issues count using search API
-        this.octokit.rest.search.issuesAndPullRequests({
-          q: `repo:${owner}/${repo} is:issue`,
-          per_page: 1, // We only need the total count
-        }).catch(() => ({ data: { total_count: 0 } })),
-        
-        // Get repository metadata
-        this.octokit.rest.repos.get({ owner, repo }).catch(() => ({ data: {} })),
+      // Get repository metadata first - this gives us reliable open issues count
+      const repoData = await this.octokit.rest.repos.get({ owner, repo }).catch(() => ({ data: {} }));
+      
+      // Get more accurate counts using pagination and Link headers
+      const [totalCommits, totalContributors, totalIssues] = await Promise.all([
+        this.getAccurateCommitCount(owner, repo),
+        this.getAccurateContributorCount(owner, repo),
+        this.getAccurateIssueCount(owner, repo),
       ]);
 
-      // Also get open issues count specifically
-      const openIssuesSearch = await this.octokit.rest.search.issuesAndPullRequests({
-        q: `repo:${owner}/${repo} is:issue is:open`,
-        per_page: 1,
-      }).catch(() => ({ data: { total_count: 0 } }));
-
       return {
-        totalCommits: commitsSearch.data.total_count || 0,
-        totalContributors: contributorsSearch.total_count || 0,
-        totalIssues: issuesSearch.data.total_count || 0,
-        openIssues: openIssuesSearch.data.total_count || 0,
+        totalCommits,
+        totalContributors,
+        totalIssues,
+        openIssues: (repoData.data as any)?.open_issues_count || 0, // Open issues from repo metadata
         // Additional metadata from repository
         stars: (repoData.data as any)?.stargazers_count || 0,
         forks: (repoData.data as any)?.forks_count || 0,
@@ -276,6 +244,119 @@ export class GitHubService {
         forks: 0,
         watchers: 0,
       };
+    }
+  }
+
+  private async getAccurateCommitCount(owner: string, repo: string): Promise<number> {
+    try {
+      // Try to get accurate commit count by checking multiple pages
+      let totalCommits = 0;
+      let page = 1;
+      const maxPages = 10; // Check up to 1000 commits to get a better estimate
+      
+      while (page <= maxPages) {
+        const response = await this.octokit.rest.repos.listCommits({
+          owner,
+          repo,
+          per_page: 100,
+          page,
+        });
+        
+        totalCommits += response.data.length;
+        
+        // If we got less than 100 results, we've reached the end
+        if (response.data.length < 100) {
+          break;
+        }
+        
+        page++;
+      }
+      
+      // If we hit the max pages limit, estimate based on what we found
+      if (page > maxPages && totalCommits === maxPages * 100) {
+        // We likely have more commits, so estimate conservatively
+        return Math.round(totalCommits * 1.5); // Conservative estimate
+      }
+      
+      return totalCommits;
+    } catch (error) {
+      console.error("Error getting accurate commit count:", error);
+      return 0;
+    }
+  }
+
+  private async getAccurateContributorCount(owner: string, repo: string): Promise<number> {
+    try {
+      // Get contributors count using Link header for accurate pagination
+      const response = await this.octokit.rest.repos.listContributors({
+        owner,
+        repo,
+        per_page: 100,
+        page: 1,
+      });
+      
+      // Check Link header for total pages
+      const linkHeader = response.headers.link;
+      if (linkHeader) {
+        const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
+        if (lastPageMatch) {
+          const lastPage = parseInt(lastPageMatch[1]);
+          // Get the last page to count remaining contributors
+          const lastPageResponse = await this.octokit.rest.repos.listContributors({
+            owner,
+            repo,
+            per_page: 100,
+            page: lastPage,
+          });
+          
+          return (lastPage - 1) * 100 + lastPageResponse.data.length;
+        }
+      }
+      
+      // Fallback: return the count from first page if no pagination
+      return response.data.length;
+    } catch (error) {
+      console.error("Error getting accurate contributor count:", error);
+      return 0;
+    }
+  }
+
+  private async getAccurateIssueCount(owner: string, repo: string): Promise<number> {
+    try {
+      // Count total issues (open + closed) using pagination
+      let totalIssues = 0;
+      let page = 1;
+      const maxPages = 5; // Check up to 500 issues for performance
+      
+      while (page <= maxPages) {
+        const response = await this.octokit.rest.issues.listForRepo({
+          owner,
+          repo,
+          state: "all", // Get both open and closed issues
+          per_page: 100,
+          page,
+        });
+        
+        totalIssues += response.data.length;
+        
+        // If we got less than 100 results, we've reached the end
+        if (response.data.length < 100) {
+          break;
+        }
+        
+        page++;
+      }
+      
+      // If we hit the max pages limit, estimate based on what we found
+      if (page > maxPages && totalIssues === maxPages * 100) {
+        // We likely have more issues, so estimate conservatively
+        return Math.round(totalIssues * 1.2); // Conservative estimate
+      }
+      
+      return totalIssues;
+    } catch (error) {
+      console.error("Error getting accurate issue count:", error);
+      return 0;
     }
   }
 
