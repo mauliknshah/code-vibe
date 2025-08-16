@@ -30,9 +30,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "GitHub OAuth not configured" });
     }
 
-    // Use HTTPS for deployed apps and dynamic protocol for development
-    const protocol = process.env.NODE_ENV === 'production' || req.get('host')?.includes('replit.app') ? 'https' : req.protocol;
-    const redirectUri = `${protocol}://${req.get('host')}/api/auth/github/callback`;
+    // Hardcode the redirect URI to match GitHub OAuth app configuration
+    const redirectUri = "https://code-vibe-maulik.replit.app/api/auth/github/callback";
     const scope = "repo,user:email";
     const state = Math.random().toString(36).substring(7);
     
