@@ -3,17 +3,6 @@ import { pgTable, text, varchar, timestamp, jsonb, boolean, integer } from "driz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Users table for GitHub authentication
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  githubId: varchar("github_id").notNull().unique(),
-  username: text("username").notNull(),
-  email: text("email"),
-  avatarUrl: text("avatar_url"),
-  accessToken: text("access_token").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
 // Repositories table
 export const repositories = pgTable("repositories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -26,7 +15,7 @@ export const repositories = pgTable("repositories", {
   stars: integer("stars").default(0),
   forks: integer("forks").default(0),
   url: text("url").notNull(),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id"),
   lastAnalyzed: timestamp("last_analyzed"),
   analysisData: jsonb("analysis_data"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -35,7 +24,7 @@ export const repositories = pgTable("repositories", {
 // Conversations table
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id"),
   repositoryId: varchar("repository_id").references(() => repositories.id),
   title: text("title"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -66,16 +55,12 @@ export const repositoryAnalysis = pgTable("repository_analysis", {
 });
 
 // Schema exports
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-});
-
 export const insertRepositorySchema = createInsertSchema(repositories).omit({
   id: true,
   createdAt: true,
   lastAnalyzed: true,
   analysisData: true,
+  userId: true,
 });
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
@@ -95,9 +80,6 @@ export const insertRepositoryAnalysisSchema = createInsertSchema(repositoryAnaly
 });
 
 // Types
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-
 export type Repository = typeof repositories.$inferSelect;
 export type InsertRepository = z.infer<typeof insertRepositorySchema>;
 

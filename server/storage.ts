@@ -1,6 +1,4 @@
 import { 
-  type User, 
-  type InsertUser, 
   type Repository, 
   type InsertRepository,
   type Conversation,
@@ -15,23 +13,16 @@ import {
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  // User methods
-  getUser(id: string): Promise<User | undefined>;
-  getUserByGithubId(githubId: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
-
   // Repository methods
   getRepository(id: string): Promise<Repository | undefined>;
   getRepositoryByGithubId(githubId: number): Promise<Repository | undefined>;
-  getRepositoriesByUser(userId: string): Promise<Repository[]>;
+  getRepositoryByFullName(fullName: string): Promise<Repository | undefined>;
   createRepository(repository: InsertRepository): Promise<Repository>;
   updateRepository(id: string, updates: Partial<Repository>): Promise<Repository | undefined>;
 
   // Conversation methods
   getConversation(id: string): Promise<Conversation | undefined>;
   getConversationWithMessages(id: string): Promise<ConversationWithMessages | undefined>;
-  getConversationsByUser(userId: string): Promise<Conversation[]>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversation(id: string, updates: Partial<Conversation>): Promise<Conversation | undefined>;
 
@@ -47,42 +38,10 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User> = new Map();
   private repositories: Map<string, Repository> = new Map();
   private conversations: Map<string, Conversation> = new Map();
   private messages: Map<string, Message> = new Map();
   private repositoryAnalyses: Map<string, RepositoryAnalysis> = new Map();
-
-  // User methods
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByGithubId(githubId: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.githubId === githubId);
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { 
-      ...insertUser,
-      email: insertUser.email || null,
-      avatarUrl: insertUser.avatarUrl || null,
-      id, 
-      createdAt: new Date() 
-    };
-    this.users.set(id, user);
-    return user;
-  }
-
-  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
-    const user = this.users.get(id);
-    if (!user) return undefined;
-    
-    const updatedUser = { ...user, ...updates };
-    this.users.set(id, updatedUser);
-    return updatedUser;
-  }
 
   // Repository methods
   async getRepository(id: string): Promise<Repository | undefined> {
@@ -93,8 +52,8 @@ export class MemStorage implements IStorage {
     return Array.from(this.repositories.values()).find(repo => repo.githubId === githubId);
   }
 
-  async getRepositoriesByUser(userId: string): Promise<Repository[]> {
-    return Array.from(this.repositories.values()).filter(repo => repo.userId === userId);
+  async getRepositoryByFullName(fullName: string): Promise<Repository | undefined> {
+    return Array.from(this.repositories.values()).find(repo => repo.fullName === fullName);
   }
 
   async createRepository(insertRepository: InsertRepository): Promise<Repository> {
@@ -106,7 +65,7 @@ export class MemStorage implements IStorage {
       language: insertRepository.language || null,
       stars: insertRepository.stars || 0,
       forks: insertRepository.forks || 0,
-      userId: insertRepository.userId || null,
+      userId: null,
       id,
       createdAt: new Date(),
       lastAnalyzed: null,
@@ -138,9 +97,6 @@ export class MemStorage implements IStorage {
     return { ...conversation, messages };
   }
 
-  async getConversationsByUser(userId: string): Promise<Conversation[]> {
-    return Array.from(this.conversations.values()).filter(conv => conv.userId === userId);
-  }
 
   async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
     const id = randomUUID();
@@ -148,7 +104,7 @@ export class MemStorage implements IStorage {
     const conversation: Conversation = {
       ...insertConversation,
       title: insertConversation.title || null,
-      userId: insertConversation.userId || null,
+      userId: null,
       repositoryId: insertConversation.repositoryId || null,
       id,
       createdAt: now,

@@ -3,175 +3,45 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { GitHubService } from "./services/github";
 import { codeAnalysisService } from "./services/openai";
-import { insertUserSchema, insertRepositorySchema, insertConversationSchema, insertMessageSchema } from "@shared/schema";
-import session from "express-session";
-
-// Extend the session interface to include our custom properties
-declare module "express-session" {
-  interface SessionData {
-    oauthState?: string;
-    userId?: string;
-  }
-}
+import { insertRepositorySchema, insertConversationSchema, insertMessageSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Session configuration for OAuth
-  app.use(session({
-    secret: process.env.SESSION_SECRET || 'dev-session-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
-  }));
 
-  // GitHub OAuth routes
-  app.get("/api/auth/github", (req, res) => {
-    console.log('GitHub OAuth request received from:', req.get('host'));
-    console.log('User agent:', req.get('user-agent'));
-    console.log('Referer:', req.get('referer'));
-    
-    const clientId = process.env.GITHUB_CLIENT_ID;
-    console.log('Client ID exists:', !!clientId);
-    
-    if (!clientId) {
-      console.log('Error: GitHub OAuth not configured');
-      return res.status(500).json({ message: "GitHub OAuth not configured" });
-    }
-
-    // Hardcode the redirect URI to match GitHub OAuth app configuration
-    const redirectUri = "https://code-vibe-maulik.replit.app/api/auth/github/callback";
-    const scope = "repo,user:email";
-    const state = Math.random().toString(36).substring(7);
-    
-    console.log('OAuth redirect URI:', redirectUri);
-    console.log('Generated state:', state);
-    
-    (req.session as any).oauthState = state;
-    
-    const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}`;
-    console.log('Redirecting to GitHub with URL:', authUrl);
-    res.redirect(authUrl);
-  });
-
-  app.get("/api/auth/github/callback", async (req, res) => {
+  // Repository search route
+  app.get("/api/repositories/search", async (req, res) => {
     try {
-      const { code, state } = req.query;
+      const { q, sort = 'stars' } = req.query;
       
-      if (!code || state !== (req.session as any).oauthState) {
-        return res.status(400).json({ message: "Invalid OAuth callback" });
+      if (!q || typeof q !== 'string') {
+        return res.status(400).json({ message: "Search query is required" });
       }
-
-      const accessToken = await GitHubService.exchangeCodeForToken(code as string);
-      const githubService = new GitHubService(accessToken);
-      const profile = await githubService.getUserProfile();
-
-      let user = await storage.getUserByGithubId(profile.id.toString());
       
-      if (!user) {
-        user = await storage.createUser({
-          githubId: profile.id.toString(),
-          username: profile.login,
-          email: profile.email,
-          avatarUrl: profile.avatar_url,
-          accessToken,
-        });
-      } else {
-        user = await storage.updateUser(user.id, {
-          accessToken,
-          username: profile.login,
-          email: profile.email,
-          avatarUrl: profile.avatar_url,
-        });
-      }
-
-      (req.session as any).userId = user?.id;
-      res.redirect("/");
-    } catch (error) {
-      console.error("OAuth callback error:", error);
-      res.status(500).json({ message: "Authentication failed" });
-    }
-  });
-
-  app.post("/api/auth/logout", (req, res) => {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ message: "Failed to logout" });
-      }
-      res.json({ message: "Logged out successfully" });
-    });
-  });
-
-  // Middleware to check authentication
-  const requireAuth = async (req: any, res: any, next: any) => {
-    const userId = (req.session as any)?.userId;
-    if (!userId) {
-      return res.status(401).json({ message: "Authentication required" });
-    }
-    
-    const user = await storage.getUser(userId);
-    if (!user) {
-      return res.status(401).json({ message: "User not found" });
-    }
-    
-    req.user = user;
-    next();
-  };
-
-  // User profile route
-  app.get("/api/user/profile", requireAuth, (req: any, res) => {
-    const { accessToken, ...userProfile } = req.user;
-    res.json(userProfile);
-  });
-
-  // Repository routes
-  app.get("/api/repositories", requireAuth, async (req: any, res) => {
-    try {
-      const githubService = new GitHubService(req.user.accessToken);
-      const githubRepos = await githubService.getUserRepositories();
-      
-      // Get stored repositories for this user
-      const storedRepos = await storage.getRepositoriesByUser(req.user.id);
-      const storedRepoMap = new Map(storedRepos.map(repo => [repo.githubId, repo]));
-      
-      // Merge GitHub data with stored data
-      const repositories = githubRepos.map(githubRepo => {
-        const stored = storedRepoMap.get(githubRepo.id);
-        return stored || {
-          githubId: githubRepo.id,
-          name: githubRepo.name,
-          fullName: githubRepo.full_name,
-          description: githubRepo.description,
-          isPrivate: githubRepo.private,
-          language: githubRepo.language,
-          stars: githubRepo.stargazers_count,
-          forks: githubRepo.forks_count,
-          url: githubRepo.html_url,
-          userId: req.user.id,
-        };
-      });
+      const githubService = new GitHubService();
+      const repositories = await githubService.searchPublicRepositories(q as string, sort as 'stars' | 'updated' | 'forks');
       
       res.json(repositories);
     } catch (error) {
-      console.error("Error fetching repositories:", error);
-      res.status(500).json({ message: "Failed to fetch repositories" });
+      console.error("Error searching repositories:", error);
+      res.status(500).json({ message: "Failed to search repositories" });
     }
   });
 
-  app.post("/api/repositories/:githubId/select", requireAuth, async (req: any, res) => {
+  app.post("/api/repositories/select", async (req, res) => {
     try {
-      const githubId = parseInt(req.params.githubId);
-      const githubService = new GitHubService(req.user.accessToken);
+      const { fullName } = req.body;
+      
+      if (!fullName || typeof fullName !== 'string') {
+        return res.status(400).json({ message: "Repository full name is required" });
+      }
+      
+      const githubService = new GitHubService();
       
       // Check if repository already exists
-      let repository = await storage.getRepositoryByGithubId(githubId);
+      let repository = await storage.getRepositoryByFullName(fullName);
       
       if (!repository) {
         // Fetch repository details from GitHub
-        const githubRepos = await githubService.getUserRepositories();
-        const githubRepo = githubRepos.find(repo => repo.id === githubId);
-        
-        if (!githubRepo) {
-          return res.status(404).json({ message: "Repository not found" });
-        }
+        const githubRepo = await githubService.getRepositoryByFullName(fullName);
         
         repository = await storage.createRepository({
           githubId: githubRepo.id,
@@ -183,7 +53,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stars: githubRepo.stargazers_count,
           forks: githubRepo.forks_count,
           url: githubRepo.html_url,
-          userId: req.user.id,
         });
       }
       
@@ -233,10 +102,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/repositories/:id/analysis", requireAuth, async (req: any, res) => {
+  app.get("/api/repositories/:id/analysis", async (req, res) => {
     try {
       const repository = await storage.getRepository(req.params.id);
-      if (!repository || repository.userId !== req.user.id) {
+      if (!repository) {
         return res.status(404).json({ message: "Repository not found" });
       }
       
@@ -249,20 +118,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Conversation routes
-  app.get("/api/conversations", requireAuth, async (req: any, res) => {
-    try {
-      const conversations = await storage.getConversationsByUser(req.user.id);
-      res.json(conversations);
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-      res.status(500).json({ message: "Failed to fetch conversations" });
-    }
-  });
-
-  app.get("/api/conversations/:id", requireAuth, async (req: any, res) => {
+  app.get("/api/conversations/:id", async (req, res) => {
     try {
       const conversation = await storage.getConversationWithMessages(req.params.id);
-      if (!conversation || conversation.userId !== req.user.id) {
+      if (!conversation) {
         return res.status(404).json({ message: "Conversation not found" });
       }
       res.json(conversation);
@@ -272,17 +131,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/conversations", requireAuth, async (req: any, res) => {
+  app.post("/api/conversations", async (req, res) => {
     try {
       const { repositoryId, title } = req.body;
       
       const repository = await storage.getRepository(repositoryId);
-      if (!repository || repository.userId !== req.user.id) {
+      if (!repository) {
         return res.status(404).json({ message: "Repository not found" });
       }
       
       const conversation = await storage.createConversation({
-        userId: req.user.id,
         repositoryId,
         title,
       });
@@ -295,13 +153,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Message and analysis routes
-  app.post("/api/conversations/:id/messages", requireAuth, async (req: any, res) => {
+  app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
       const conversationId = req.params.id;
       const { content } = req.body;
       
       const conversation = await storage.getConversation(conversationId);
-      if (!conversation || conversation.userId !== req.user.id) {
+      if (!conversation) {
         return res.status(404).json({ message: "Conversation not found" });
       }
       

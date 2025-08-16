@@ -1,14 +1,12 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import RepositorySelector from "@/components/repository-selector";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import RepositorySearch from "@/components/repository-search";
 import ChatInterface from "@/components/chat-interface";
 import AnalyticsSidebar from "@/components/analytics-sidebar";
-import GitHubAuth from "@/components/github-auth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import type { Repository, RepositoryAnalysis, User } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import type { Repository, RepositoryAnalysis, GitHubRepository } from "@shared/schema";
 
 export default function Dashboard() {
   const [selectedRepository, setSelectedRepository] = useState<Repository | null>(null);
@@ -16,63 +14,34 @@ export default function Dashboard() {
   const [showRepoModal, setShowRepoModal] = useState(false);
   const { toast } = useToast();
 
-  // Check user authentication
-  const { data: user, isLoading: userLoading, error: userError } = useQuery<User>({
-    queryKey: ["/api/user/profile"],
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-
-  const isAuthenticated = !!user && !userError;
-
-  // Handle repository selection
-  const handleRepositorySelect = (repo: Repository, analysis: RepositoryAnalysis) => {
-    setSelectedRepository(repo);
-    setRepositoryAnalysis(analysis);
-    setShowRepoModal(false);
-    toast({
-      title: "Repository Selected",
-      description: `Successfully loaded ${repo.fullName}`,
-    });
-  };
-
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      window.location.reload();
-    } catch (error) {
+  const selectRepositoryMutation = useMutation({
+    mutationFn: async (githubRepo: GitHubRepository) => {
+      const response = await apiRequest("POST", "/api/repositories/select", {
+        fullName: githubRepo.full_name,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setSelectedRepository(data.repository);
+      setRepositoryAnalysis(data.analysis);
+      setShowRepoModal(false);
+      toast({
+        title: "Repository Selected",
+        description: `Successfully loaded ${data.repository.fullName}`,
+      });
+    },
+    onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to logout",
+        description: "Failed to select repository",
         variant: "destructive",
       });
-    }
+    },
+  });
+
+  const handleRepositorySelect = (githubRepo: GitHubRepository) => {
+    selectRepositoryMutation.mutate(githubRepo);
   };
-
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-github-dark text-github-text flex items-center justify-center">
-        <div className="space-y-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-github-blue to-github-purple rounded-2xl mx-auto flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <p className="text-github-muted text-center">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-github-dark text-github-text flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-github-surface border-github-border">
-          <CardContent className="p-8">
-            <GitHubAuth />
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex bg-github-dark text-github-text" data-testid="dashboard">
@@ -175,32 +144,11 @@ export default function Dashboard() {
           </div>
         </nav>
 
-        {/* User Profile */}
+        {/* App Info */}
         <div className="p-4 border-t border-github-border">
-          <div className="flex items-center space-x-3">
-            <img 
-              src={user.avatarUrl || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&crop=face"} 
-              alt="User avatar" 
-              className="w-10 h-10 rounded-full" 
-              data-testid="img-user-avatar"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-github-text truncate" data-testid="text-user-name">
-                {user.username}
-              </p>
-              <p className="text-xs text-github-muted truncate" data-testid="text-user-email">
-                {user.email || "No email"}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="text-github-muted hover:text-github-text"
-              data-testid="button-logout"
-            >
-              <i className="fas fa-sign-out-alt"></i>
-            </Button>
+          <div className="text-center">
+            <p className="text-sm text-github-muted mb-2">CodeInsight</p>
+            <p className="text-xs text-github-muted">Analyzing public repositories with AI</p>
           </div>
         </div>
       </div>
@@ -236,9 +184,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Repository Modal */}
+      {/* Repository Search Modal */}
       {showRepoModal && (
-        <RepositorySelector 
+        <RepositorySearch 
           onSelect={handleRepositorySelect}
           onClose={() => setShowRepoModal(false)}
         />

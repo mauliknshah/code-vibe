@@ -4,20 +4,20 @@ import type { GitHubRepository } from "@shared/schema";
 export class GitHubService {
   private octokit: Octokit;
 
-  constructor(accessToken: string) {
-    this.octokit = new Octokit({
-      auth: accessToken,
-    });
+  constructor() {
+    this.octokit = new Octokit();
   }
 
-  async getUserRepositories(): Promise<GitHubRepository[]> {
+  async searchPublicRepositories(query: string, sort: 'stars' | 'updated' | 'forks' = 'stars'): Promise<GitHubRepository[]> {
     try {
-      const response = await this.octokit.rest.repos.listForAuthenticatedUser({
-        sort: "updated",
-        per_page: 100,
+      const response = await this.octokit.rest.search.repos({
+        q: query,
+        sort: sort,
+        order: 'desc',
+        per_page: 50,
       });
       
-      return response.data.map(repo => ({
+      return response.data.items.map(repo => ({
         id: repo.id,
         name: repo.name,
         full_name: repo.full_name,
@@ -30,8 +30,31 @@ export class GitHubService {
         updated_at: repo.updated_at || new Date().toISOString(),
       }));
     } catch (error) {
-      console.error("Error fetching repositories:", error);
-      throw new Error("Failed to fetch repositories from GitHub");
+      console.error("Error searching repositories:", error);
+      throw new Error("Failed to search repositories from GitHub");
+    }
+  }
+
+  async getRepositoryByFullName(fullName: string): Promise<GitHubRepository> {
+    try {
+      const [owner, repo] = fullName.split('/');
+      const response = await this.octokit.rest.repos.get({ owner, repo });
+      
+      return {
+        id: response.data.id,
+        name: response.data.name,
+        full_name: response.data.full_name,
+        description: response.data.description,
+        private: response.data.private,
+        language: response.data.language,
+        stargazers_count: response.data.stargazers_count,
+        forks_count: response.data.forks_count,
+        html_url: response.data.html_url,
+        updated_at: response.data.updated_at || new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error fetching repository:", error);
+      throw new Error("Failed to fetch repository from GitHub");
     }
   }
 
@@ -132,43 +155,4 @@ export class GitHubService {
     }
   }
 
-  static async exchangeCodeForToken(code: string): Promise<string> {
-    const clientId = process.env.GITHUB_CLIENT_ID;
-    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      throw new Error("GitHub OAuth credentials not configured");
-    }
-
-    const response = await fetch("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-      }),
-    });
-
-    const data = await response.json();
-    
-    if (data.error) {
-      throw new Error(`GitHub OAuth error: ${data.error_description}`);
-    }
-
-    return data.access_token;
-  }
-
-  async getUserProfile() {
-    try {
-      const response = await this.octokit.rest.users.getAuthenticated();
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-      throw new Error("Failed to fetch user profile from GitHub");
-    }
-  }
 }
