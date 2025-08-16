@@ -249,36 +249,38 @@ export class GitHubService {
 
   private async getAccurateCommitCount(owner: string, repo: string): Promise<number> {
     try {
-      // Try to get accurate commit count by checking multiple pages
-      let totalCommits = 0;
-      let page = 1;
-      const maxPages = 10; // Check up to 1000 commits to get a better estimate
+      // Start with a single request to check if we can get Link headers
+      const firstResponse = await this.octokit.rest.repos.listCommits({
+        owner,
+        repo,
+        per_page: 100,
+        page: 1,
+      });
       
-      while (page <= maxPages) {
-        const response = await this.octokit.rest.repos.listCommits({
-          owner,
-          repo,
-          per_page: 100,
-          page,
-        });
-        
-        totalCommits += response.data.length;
-        
-        // If we got less than 100 results, we've reached the end
-        if (response.data.length < 100) {
-          break;
+      // Check for Link header to see total pages
+      const linkHeader = firstResponse.headers.link;
+      if (linkHeader) {
+        const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
+        if (lastPageMatch) {
+          const lastPage = parseInt(lastPageMatch[1]);
+          // For large repos, estimate conservatively to avoid rate limits
+          if (lastPage > 50) {
+            return lastPage * 95; // Conservative estimate (95 commits per page average)
+          }
+          
+          // For smaller repos, get actual count from last page
+          const lastPageResponse = await this.octokit.rest.repos.listCommits({
+            owner,
+            repo,
+            per_page: 100,
+            page: lastPage,
+          });
+          return (lastPage - 1) * 100 + lastPageResponse.data.length;
         }
-        
-        page++;
       }
       
-      // If we hit the max pages limit, estimate based on what we found
-      if (page > maxPages && totalCommits === maxPages * 100) {
-        // We likely have more commits, so estimate conservatively
-        return Math.round(totalCommits * 1.5); // Conservative estimate
-      }
-      
-      return totalCommits;
+      // Fallback: count what we can without hitting rate limits
+      return firstResponse.data.length;
     } catch (error) {
       console.error("Error getting accurate commit count:", error);
       return 0;
@@ -301,15 +303,27 @@ export class GitHubService {
         const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
         if (lastPageMatch) {
           const lastPage = parseInt(lastPageMatch[1]);
-          // Get the last page to count remaining contributors
-          const lastPageResponse = await this.octokit.rest.repos.listContributors({
-            owner,
-            repo,
-            per_page: 100,
-            page: lastPage,
-          });
           
-          return (lastPage - 1) * 100 + lastPageResponse.data.length;
+          // For large repos with many contributors, estimate to avoid rate limits
+          if (lastPage > 10) {
+            // Conservative estimation: assume average 80 contributors per page
+            // except the last page which typically has fewer
+            return (lastPage - 1) * 80 + 50; // Rough estimate
+          }
+          
+          // For smaller repos, get exact count from last page
+          try {
+            const lastPageResponse = await this.octokit.rest.repos.listContributors({
+              owner,
+              repo,
+              per_page: 100,
+              page: lastPage,
+            });
+            return (lastPage - 1) * 100 + lastPageResponse.data.length;
+          } catch (error) {
+            // If rate limited on second request, use estimation
+            return lastPage * 90; // Conservative estimate
+          }
         }
       }
       
@@ -323,37 +337,46 @@ export class GitHubService {
 
   private async getAccurateIssueCount(owner: string, repo: string): Promise<number> {
     try {
-      // Count total issues (open + closed) using pagination
-      let totalIssues = 0;
-      let page = 1;
-      const maxPages = 5; // Check up to 500 issues for performance
+      // Get issues count using Link header for better estimation
+      const response = await this.octokit.rest.issues.listForRepo({
+        owner,
+        repo,
+        state: "all", // Get both open and closed issues
+        per_page: 100,
+        page: 1,
+      });
       
-      while (page <= maxPages) {
-        const response = await this.octokit.rest.issues.listForRepo({
-          owner,
-          repo,
-          state: "all", // Get both open and closed issues
-          per_page: 100,
-          page,
-        });
-        
-        totalIssues += response.data.length;
-        
-        // If we got less than 100 results, we've reached the end
-        if (response.data.length < 100) {
-          break;
+      // Check Link header for total pages
+      const linkHeader = response.headers.link;
+      if (linkHeader) {
+        const lastPageMatch = linkHeader.match(/page=(\d+)>; rel="last"/);
+        if (lastPageMatch) {
+          const lastPage = parseInt(lastPageMatch[1]);
+          
+          // For large repos, estimate to avoid rate limits
+          if (lastPage > 20) {
+            return lastPage * 85; // Conservative estimate (85 issues per page average)
+          }
+          
+          // For smaller repos, get exact count from last page
+          try {
+            const lastPageResponse = await this.octokit.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "all",
+              per_page: 100,
+              page: lastPage,
+            });
+            return (lastPage - 1) * 100 + lastPageResponse.data.length;
+          } catch (error) {
+            // If rate limited, use estimation
+            return lastPage * 90;
+          }
         }
-        
-        page++;
       }
       
-      // If we hit the max pages limit, estimate based on what we found
-      if (page > maxPages && totalIssues === maxPages * 100) {
-        // We likely have more issues, so estimate conservatively
-        return Math.round(totalIssues * 1.2); // Conservative estimate
-      }
-      
-      return totalIssues;
+      // Fallback: return the count from first page
+      return response.data.length;
     } catch (error) {
       console.error("Error getting accurate issue count:", error);
       return 0;
